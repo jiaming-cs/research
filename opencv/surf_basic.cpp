@@ -3,11 +3,10 @@
 #include <iostream>
 #include <vector>
 #include <string>
-
+#include <cmath>
 using namespace cv;
 using namespace cv::xfeatures2d;
 using namespace std;
-
 
 
 Mat drawMatch(Mat img1, Mat img2, bool extended = true){
@@ -57,8 +56,7 @@ Mat drawMatch(Mat img1, Mat img2, bool extended = true){
     Mat img_matches;
 
     drawMatches(img1, keyPoints_img1, img2, keyPoints_img2, goodMatches, img_matches);
-    
-
+  
     Mat H = findHomography(img1_points, img2_points, RANSAC);
     
     vector<Point2f> img1_corners(4);
@@ -80,10 +78,8 @@ Mat drawMatch(Mat img1, Mat img2, bool extended = true){
 
     }
        
-    
-    imshow("Good Matches & img1ect detection",img_matches);
-    waitKey(0);
     return img_matches;
+  
 }
 
 int main()
@@ -93,7 +89,9 @@ int main()
     string img2_name = "large.png";
     Mat img1 = imread(folder + img1_name, IMREAD_COLOR);
     Mat img2 = imread(folder + img2_name, IMREAD_COLOR);
-    drawMatch(img1, img2);
+    Mat out = drawMatch(img1, img2);
+    imshow("Matches", out);
+    waitKey(0);
     return 0;
 }
 
