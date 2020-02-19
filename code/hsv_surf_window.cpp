@@ -1,5 +1,6 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/xfeatures2d.hpp>
+#include <opencv2/highgui.hpp>
 #include <iostream>
 #include <vector>
 #include <string>
@@ -9,6 +10,50 @@ using namespace cv::xfeatures2d;
 using namespace std;
 
 
+Mat get_mask(Mat img, Point center, int r){
+    Mat mask = Mat::zeros(img.size(), CV_8UC1);
+    circle(mask, center, r, Scalar(255), -1);
+    return mask;
+}
+
+Mat get_hist(Mat img_hvs, Point center, int r = 10, int bins = 18){
+    Mat mask = get_mask(img_hvs, center, r);
+    int hist_size[] = {bins};
+    float hranges[] = {0, 180};
+    const float* ranges[] = {hranges};
+    int chanels [] = {0};
+    MatND hist;
+    calcHist(&img_hvs, 1, chanels, mask, hist, 1, hist_size, ranges);
+    Scalar totoal = sum(hist);
+    hist = hist * 1.0 / totoal[0];
+    cout<<hist.size()<<endl;
+    //cout<<format(hist, Formatter::FMT_PYTHON)<<endl;
+    return hist;
+}
+
+double b_distance(Mat hist1, Mat hist2){
+    double s = 0;
+    for (int i=0; i<hist1.rows; i++){
+        s += sqrt(hist1.at<double>(i, 0) * hist2.at<double>(i, 0));
+    }
+    return;
+}
+
+
+
+
+void onMouse(int event, int x, int y, int flags, void* param)
+{
+	Mat* im = reinterpret_cast<Mat*>(param);
+	switch (event)
+	{
+        
+		case EVENT_LBUTTONDOWN:     //鼠标左键按下响应：返回坐标和灰度
+			get_hist(*im, Point(x, y));
+			break;
+			break;			
+	}
+}
 Mat drawMatch(Mat img1, Mat img2, bool extended = true){
    
     int minHessian=400;
@@ -82,24 +127,31 @@ Mat drawMatch(Mat img1, Mat img2, bool extended = true){
   
 }
 
-int main(int argc, char const *argv[])
+
+
+int main()
 {
-    if (argc != 5){
-        cout<<"Usage: <Img> <Angle> <Scale> <MatchNum>"<<endl;
-        exit(0);
+    string folder = "/home/jiaming/research/img/";
+    string img1_name = "pencil_bag.png";
+    string img2_name = "large.png";
+    Mat img1 = imread(folder + img1_name, IMREAD_COLOR);
+    Mat img2 = imread(folder + img2_name, IMREAD_COLOR);
+    cvtColor(img1, img1, COLOR_BGR2HSV_FULL);
+    //Mat mask = get_mask(img1, Point(0, 0), 30);
+    namedWindow("Hist", 0);
+    setMouseCallback("Hist", onMouse, &img1);
+    while (1)
+    {
+        imshow("Hist", img1);
+        waitKey(40);
     }
 
-    string folder = "/home/jiaming/research/img/";
-    string img1_name = argv[1];
-    int angle = strtol(argv[2], NULL, 10);
-    double scale = strtod(argv[3], NULL);
-    int matchNum = strtol(argv[4], NULL, 10);
-    string folder = "/home/jiaming/research/img/";
     
-    Mat img1 = imread(folder + img1_name, IMREAD_COLOR);
-    Mat out = drawMatch(img1, img2);
-    waitKey(0);
+    //cout<<img1.at<Vec3b>(0, 0)<<endl;
+    //Mat out = drawMatch(img1, img2);
+    //imshow("Matches", out);
+    //waitKey(0);
     return 0;
-    return 0;
+
 }
 
