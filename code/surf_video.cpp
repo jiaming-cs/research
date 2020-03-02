@@ -1,5 +1,6 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/xfeatures2d.hpp>
+#include <opencv2/video.hpp>
 #include <iostream>
 #include <vector>
 #include <string>
@@ -85,12 +86,12 @@ Mat drawMatch(Mat img1, Mat img2, bool extended = true){
 int main(int argc, char const *argv[])
 {
 
-    string folder = "/home/jiaming/research/img/";
-    string img1_name = "pencil_bag.png";
-    string img2_name = "large.png";
+    string img_folder = "/home/jiaming/research/img/";
+    string 
+    string bk = "large.png";
 
     Mat img1 = imread(folder + img1_name, IMREAD_COLOR);
-    Mat img2 = imread(folder + img2_name, IMREAD_COLOR);
+    Mat img2 = imread(folder + bk, IMREAD_COLOR);
     Mat img_match = drawMatch(img1, img2);
     imshow("Matches", img_match);
     waitKey(0);

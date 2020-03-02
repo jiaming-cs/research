@@ -139,9 +139,9 @@ int main(int argc, char const *argv[])
     
     
     Mat matchesImg = drawMatch(pad, rot, affineMat, angle, scale, matchNum);
-   
-    imshow("Matches", matchesImg);
-    waitKey(0);
+    imshow("match", matchesImg);
+    imwrite("out.png", matchesImg);
+    waitKey(10000);
     return 0;
 }
 
