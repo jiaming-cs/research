@@ -13,39 +13,35 @@ using namespace std;
 
 
 
-Mat get_hist(Mat img_hsv, Point2f center, int r = 10, int bins = 60){
-
-    Mat mask = Mat::zeros(2*r, 2*r, img_hsv.type());
-    circle(mask, Point(r, r), r, Scalar(255), -1);
+Mat get_hist(Mat img_hsv, Point center, int r = 10, int bins = 60){
     
-    Mat roi = img_hsv(Rect(max(0, (int)center.x - r), max(0, (int)center.y - r), 2*r, 2*r));
+    Mat g_kernal_x = getGaussianKernel(2*r, 2);
+    Mat g_kernal_y = g_kernal_x.clone();
+    Mat g_kernal = g_kernal_x * g_kernal_y.t();
+    g_kernal = g_kernal(Rect(r, r, r, r));
+    normalize(g_kernal, g_kernal, 1, 100, NORM_MINMAX);
+    g_kernal.convertTo(g_kernal, CV_8UC1);
+    cout<<g_kernal<<endl;
+    double span = 180 / bins;
+    int temp [bins] = {};
+    //cout<<format(g_kernal, Formatter::FMT_PYTHON)<<endl;
+    for (int i = max((int)center.x - r, 0); i< min((int)center.x + r, img_hsv.rows); i++){
+        for (int j = max((int)center.y - r, 0); j<min((int)center.y + r, img_hsv.cols); j++){
+            int dx = abs(i - center.x);
+            int dy = abs(j - center.y);
+            if ( dx*dx + dy*dy > r*r)
+                continue;
+            //cout<<(int)img_hsv.at<uchar>(i, j)<<endl;
+            
+            int h = img_hsv.at<uchar>(dx, dy);
+            //cout<<h<<endl;
+            cout<<(int)g_kernal.at<uchar>(dx, dy)<<endl;
+            temp[(int)(h / span)] += (int)g_kernal.at<uchar>(dx, dy);
+        }
+    }
+    Mat hist(1, bins, CV_32SC1, temp);
+    return hist;
     
-    Mat out = Mat::zeros(roi.size(), roi.type());
-
-    roi.copyTo(out, mask);
-    cout<<out.at<int>(0, 0)<<endl;
-    return out;
-    
-    
-    //imshow("Test", roi);
-/*
-    int hist_size[] = {bins};
-    float hranges[] = {0, 180};
-    const float* ranges[] = {hranges};
-    int chanels [] = {0};
-    MatND hist;
-    calcHist(&img_hvs, 1, chanels, mask, hist, 1, hist_size, ranges);
-    Scalar totoal = sum(hist);
-    hist = hist * 1.0 / totoal[0];
-    //
-    //Scalar s = sum(hist);
-    //cout<<"s:"<<s[0]<<endl;
-    resize(hist, hist, Size(bins,1));
-    //cout<<format(hist, Formatter::FMT_PYTHON)<<endl;
-
-*/
-    //return roi;
-    //return hist;
 }
 
 
@@ -348,10 +344,13 @@ int main(int argc, char const *argv[])
     //waitKey(0);
     */
 
-    Mat img1 = imread("/home/jiaming/research/img/obj.png", IMREAD_GRAYSCALE);
-    //cvtColor(img1, img1, COLOR_BGR2HSV_FULL);
-    Mat roi = get_hist(img1, Point(100, 100), 50);
-    imshow("ROI", roi);
+    Mat img1 = imread("/home/jiaming/Documents/research/img/obj.png", IMREAD_COLOR);
+    cvtColor(img1, img1, COLOR_BGR2HSV);
+    vector<Mat> hsv;
+    split(img1, hsv);
+    Mat hist = get_hist(hsv[0], Point(100, 100), 10);
+    cout<<hist<<endl;
+    //imshow("ROI", roi);
     waitKey(0);
     return 0;
 }
