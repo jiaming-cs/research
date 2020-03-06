@@ -6,6 +6,7 @@
 #include <numeric> //accumulate
 #include <cmath>
 #include <climits> //INT_MAX
+#include <fstream>
 using namespace cv;
 using namespace cv::xfeatures2d;
 using namespace std;
@@ -13,57 +14,48 @@ using namespace std;
 
 
 
-Mat get_hist(Mat img_hsv, Point center, int r = 10, int bins = 60){
+Mat get_hist(Mat img_hsv, Point center, int r = 3, int bins = 60){
     
     Mat g_kernal_x = getGaussianKernel(2*r, 2);
-    Mat g_kernal_y = g_kernal_x.clone();
-    Mat g_kernal = g_kernal_x * g_kernal_y.t();
-    g_kernal = g_kernal(Rect(r, r, r, r));
+    Mat g_kernal_y = getGaussianKernel(2*r, 2);
+    Mat g_kernal_t = g_kernal_x * g_kernal_y.t();
+    Mat g_kernal = g_kernal_t(Rect(r, r, r, r));
     normalize(g_kernal, g_kernal, 1, 100, NORM_MINMAX);
     g_kernal.convertTo(g_kernal, CV_8UC1);
-    cout<<g_kernal<<endl;
-    double span = 180 / bins;
-    int temp [bins] = {};
+    //cout<<g_kernal<<endl;
+    double span = 360 / bins;
+    double temp [bins] = {};
     //cout<<format(g_kernal, Formatter::FMT_PYTHON)<<endl;
-    for (int i = max((int)center.x - r, 0); i< min((int)center.x + r, img_hsv.rows); i++){
-        for (int j = max((int)center.y - r, 0); j<min((int)center.y + r, img_hsv.cols); j++){
-            int dx = abs(i - center.x);
-            int dy = abs(j - center.y);
+    //cout<<img_hsv.size<<endl;
+    int i_start = max((int)center.y - r, 0);
+    int i_end = min((int)center.y + r, (int)img_hsv.rows);
+    int j_start = max((int)center.x - r, 0);
+    int j_end = min((int)center.x + r, (int)img_hsv.cols);
+    for (int i = i_start; i < i_end; i++){
+        for (int j = j_start; j < j_end; j++){
+            int dy = abs(i - center.y);
+            int dx = abs(j - center.x);
             if ( dx*dx + dy*dy > r*r)
                 continue;
             //cout<<(int)img_hsv.at<uchar>(i, j)<<endl;
             
-            int h = img_hsv.at<uchar>(dx, dy);
+            int h = img_hsv.at<uchar>(i, j);
             //cout<<h<<endl;
-            cout<<(int)g_kernal.at<uchar>(dx, dy)<<endl;
-            temp[(int)(h / span)] += (int)g_kernal.at<uchar>(dx, dy);
+            //cout<<(int)g_kernal.at<uchar>(dx, dy)<<endl;
+            temp[(int)(h / span)] += (int)g_kernal.at<uchar>(dy, dx);
         }
     }
-    Mat hist(1, bins, CV_32SC1, temp);
+    
+  
+    int total = accumulate(temp, temp+bins, 0);
+    Mat hist(1, bins, CV_64FC1, temp);
+    hist = hist / total;
+    //cout<<"1"<<endl;
     return hist;
-    
 }
 
 
 
-/*
-double get_hue_distance(Mat img_hvs_1, Mat img_hvs_2, KeyPoint kp1, KeyPoint kp2){
-    Mat h1 = get_hist(img_hvs_1, kp1.pt, kp1.size);
-    Mat h2 = get_hist(img_hvs_2, kp2.pt, kp2.size);
-    
-    cout<<"H1: ";
-    for (int i=0; i<h1.rows; i++){
-        cout<<h1.at<double>(i, 0)<<" ";
-    }
-    cout<<endl;
-    cout<<"H2: ";
-    for (int i=0; i<h2.rows; i++){
-        cout<<h2.at<double>(i, 0)<<" ";
-    }
-    cout<<endl;
-    return b_distance(h1, h2);
-}
-*/
 
 Mat addPad(Mat img){
     int length = max(img.cols, img.rows);
@@ -94,14 +86,27 @@ bool isCorrect(Point2f p1, Point2f p2, double d = 10){
     return d > sqrt((p1.x - p2.x)*(p1.x - p2.x) + (p1.y - p2.y)*(p1.y - p2.y));
 }
 
+Mat get_hue(Mat img){
+    vector<Mat> chanles;
+    split(img, chanles);
+    Mat out = chanles[0].clone();
+    return out;
+}
+
 vector<vector<DMatch>> my_knn_matcher(Mat img1, Mat img2, Mat des1, Mat des2, vector<KeyPoint> kp1, vector<KeyPoint> kp2, double weight){
     Mat hue_img1;
     Mat hue_img2;
+    cvtColor(img1, img1, COLOR_BGR2HSV_FULL);
+    cvtColor(img2, img2, COLOR_BGR2HSV_FULL);
+    Mat img1_h = get_hue(img1);
+    Mat img2_h = get_hue(img2);
+    
     for (int i=0; i<kp1.size(); i++){
-        hue_img1.push_back(get_hist(img1, kp1[i].pt, kp1[i].size));
+        hue_img1.push_back(get_hist(img1_h, kp1[i].pt, kp1[i].size));
+        //hue_img1.push_back(get_hist(img1_h, kp1[i].pt));
     }
     for (int i=0; i<kp2.size(); i++){
-        hue_img2.push_back(get_hist(img2, kp2[i].pt, kp2[i].size));
+        hue_img2.push_back(get_hist(img2_h, kp2[i].pt, kp2[i].size));
     }
     //cout<<format(hue_img1.row(0), Formatter::FMT_PYTHON)<<endl;
     //cout<<format(hue_img2.row(0), Formatter::FMT_PYTHON)<<endl;
@@ -139,9 +144,9 @@ vector<vector<DMatch>> my_knn_matcher(Mat img1, Mat img2, Mat des1, Mat des2, ve
 }
 
 
-pair<Mat, double> draw_match(Mat img1, Mat img2, Mat affineMat, int angle, double scale, int matchNum = 50, bool extended = true){
+Mat draw_match(Mat img1, Mat img2, Mat affineMat, int matchNum = 50, bool extended = false){
    
-    int minHessian=400;
+    int minHessian=600;
     Ptr<SURF>  detector = SURF::create(minHessian, 4, 3, extended);
     vector<KeyPoint>key_points_img1, key_points_img2;
     detector->detect(img1, key_points_img1);
@@ -172,11 +177,10 @@ pair<Mat, double> draw_match(Mat img1, Mat img2, Mat affineMat, int angle, doubl
     }
     
     sort(goodMatches.begin(), goodMatches.end());
-
-    Mat img_matches = Mat::zeros(img1.rows, 2 * img1.cols, img1.type());
-    Mat ROI = img_matches(Rect(0, 0, img1.cols, img1.cols));
+    Mat img_matches = Mat::zeros(img1.rows, img1.cols + img2.cols, img1.type());
+    Mat ROI = img_matches(Rect(0, 0, img1.cols, img1.rows));
     img1.copyTo(ROI);
-    ROI = img_matches(Rect(img1.cols, 0, img1.cols, img1.rows));
+    ROI = img_matches(Rect(img1.cols, 0, img2.cols, img2.rows));
     img2.copyTo(ROI);
 
     Point2f p1, p2, position;
@@ -203,20 +207,18 @@ pair<Mat, double> draw_match(Mat img1, Mat img2, Mat affineMat, int angle, doubl
 
     }
 
-    double accuracy = good * 1.0 / matchNum;
+    double accuracy = good * 1.0 / min(matchNum, (int)goodMatches.size());
     string ac = "Accuracy: ";
-    string ag = "Angle: ";
-    string sc = "Scale: ";
-    //cout<< "Normal Accuracy:" << accuracy <<endl;
-    putText(img_matches, ac + to_string(accuracy) + " " + ag + to_string(angle) + " " + sc + to_string(scale), Point(100, 100), HersheyFonts::FONT_HERSHEY_PLAIN, 2, Scalar(0, 255, 0));
+    cout<< "Normal Accuracy:" << accuracy <<endl;
+    putText(img_matches, ac + to_string(accuracy), Point(50, 50), HersheyFonts::FONT_HERSHEY_PLAIN, 2, Scalar(0, 0, 255));
     pair<Mat, double> out = pair<Mat, double>(img_matches, accuracy);
 
-   return out;
+   return img_matches;
 }
 
-pair<Mat, double> draw_match_hsv(Mat img1, Mat img2, Mat affineMat, int angle, double scale, double weight, int matchNum = 50, bool extended = true){
+Mat draw_match_hsv(Mat img1, Mat img2, Mat affineMat, double weight, int matchNum = 50, bool extended = false){
    
-    int minHessian=400;
+    int minHessian=600;
     Ptr<SURF>  detector = SURF::create(minHessian, 4, 3, extended);
     vector<KeyPoint>key_points_img1, key_points_img2;
     detector->detect(img1, key_points_img1);
@@ -250,16 +252,17 @@ pair<Mat, double> draw_match_hsv(Mat img1, Mat img2, Mat affineMat, int angle, d
     
    
  
-    Mat img_matches = Mat::zeros(img1.rows, 2 * img1.cols, img1.type());
-    Mat ROI = img_matches(Rect(0, 0, img1.cols, img1.cols));
+    Mat img_matches = Mat::zeros(img1.rows, img1.cols + img2.cols, img1.type());
+    Mat ROI = img_matches(Rect(0, 0, img1.cols, img1.rows));
     img1.copyTo(ROI);
-    ROI = img_matches(Rect(img1.cols, 0, img1.cols, img1.rows));
+    ROI = img_matches(Rect(img1.cols, 0, img2.cols, img2.rows));
     img2.copyTo(ROI);
 
     Point2f p1, p2, position;
     Point2f shift = Point2f(img1.cols, 0);
 
     int good = 0;
+
 
     for(unsigned int i = 0; i < min(matchNum, (int)goodMatches.size()); ++i)
     {
@@ -280,77 +283,60 @@ pair<Mat, double> draw_match_hsv(Mat img1, Mat img2, Mat affineMat, int angle, d
 
     }
 
-    double accuracy = good * 1.0 / matchNum;
+    double accuracy = good * 1.0 / min(matchNum, (int)goodMatches.size());
     //cout<<accuracy<<endl;
     string ac = "Accuracy: ";
-    string ag = "Angle: ";
-    string sc = "Scale: ";
-    //cout<< "HSV Accuracy: " << accuracy <<endl;
-    putText(img_matches, ac + to_string(accuracy) + " " + ag + to_string(angle) + " " + sc + to_string(scale), Point(100, 100), HersheyFonts::FONT_HERSHEY_PLAIN, 2, Scalar(0, 255, 0));
+    
+    cout<< "HSV Accuracy: " << accuracy <<endl;
+    putText(img_matches, ac + to_string(accuracy), Point(50, 50), HersheyFonts::FONT_HERSHEY_PLAIN, 2, Scalar(0, 0, 255));
     pair<Mat, double> out = pair<Mat, double>(img_matches, accuracy);
 
-   return out;
+   return img_matches;
+}
+
+Mat read_h(string file_name){
+    Mat out = Mat::zeros(2, 3, CV_64FC1);
+    ifstream in(file_name);
+    double n;
+    for (int i = 0; i<2 ; i++){
+        for (int j = 0; j < 3; j++){
+            in >> n;
+            out.at<double>(i, j) = n;
+        }
+    }
+    //cout<<format(out, Formatter::FMT_PYTHON)<<endl;
+    return out;
+
 }
 
 //Usage: <Img> <Angle> <Scale> <MatchNum>
 
 int main(int argc, char const *argv[])
 {
-    /*
-    if (argc != 6){
-        cout<<"Usage: <Img> <Step> <Scale> <Weight> <MatchNum>"<<endl;
+
+    if (argc != 7){
+        cout<<"Usage: <ImgFoder> <ImgName1> <ImgName2> <Hname> <Weight> <MatchNum>"<<endl;
         exit(0);
     }
 
-    string folder = "/home/jiaming/research/img/";
-    string img1_name = argv[1];
-    int step= strtol(argv[2], NULL, 10);
-    double scale = strtod(argv[3], NULL);
-    double weight = strtod(argv[4], NULL);
-    int matchNum = strtol(argv[5], NULL, 10);
-    Mat img1 = imread(folder + img1_name, IMREAD_COLOR);
-    Mat img1_hsv;
-    cvtColor(img1, img1_hsv, COLOR_BGR2HSV_FULL); 
-  
-    Mat pad = addPad(img1);
-    Point2f center = Point2f(pad.cols / 2, pad.rows / 2);
-    vector<double> ac_normal, ac_hsv;
-    for(int j = 0; j <= 10; j++){
-        scale = 0.5 + j*0.1;
-        for(int i =0 ; i <= 360 ; i += step){
-        //cout<<"Angle: "<<to_string(i)<<endl;
-        Mat affineMat = getRotationMatrix2D(center, i, scale);
-        Mat rot = rotateImg(pad, affineMat, center);
-        
-        Mat pad_hsv = addPad(img1_hsv);
-        pair<Mat, double> img_ac;
-        //Mat affineMat = getRotationMatrix2D(center, angle, scale);
-        Mat rot_hsv = rotateImg(pad_hsv, affineMat, center);
-        img_ac = draw_match(pad, rot, affineMat, i, scale, matchNum);
-        ac_normal.push_back(img_ac.second);
-        imshow("Regular", img_ac.first);
-        img_ac = draw_match_hsv(pad_hsv, rot_hsv, affineMat, i, scale, weight, matchNum);
-        ac_hsv.push_back(img_ac.second);
-        //imshow("HSV", img_ac.second);
-        //waitKey(1000);
-    }
+    string base_folder = "/home/jiaming/Documents/research/dataset/";
+    string img_folder = argv[1];
+    string img_name1 = argv[2];
+    string img_name2 = argv[3];
+    string aff_name = argv[4];
+    double weight = strtod(argv[5], NULL);
+    int matchNum = strtol(argv[6], NULL, 10);
 
-    cout<<"Average accuracy for normal surf: "<< accumulate(ac_normal.begin(), ac_normal.end(), 0.0) / ac_normal.size()<<endl;
-    cout<<"Average accuracy for hsv surf: "<< accumulate(ac_hsv.begin(), ac_hsv.end(), 0.0) / ac_hsv.size()<<endl;
-
-
-    }
-    
+    Mat img1 = imread(base_folder + img_folder + "/" + img_name1 + ".ppm", IMREAD_COLOR);
+    Mat img2 = imread(base_folder + img_folder + "/" + img_name2 + ".ppm", IMREAD_COLOR);
+    //imshow("img2", img2);
     //waitKey(0);
-    */
-
-    Mat img1 = imread("/home/jiaming/Documents/research/img/obj.png", IMREAD_COLOR);
-    cvtColor(img1, img1, COLOR_BGR2HSV);
-    vector<Mat> hsv;
-    split(img1, hsv);
-    Mat hist = get_hist(hsv[0], Point(100, 100), 10);
-    cout<<hist<<endl;
-    //imshow("ROI", roi);
+    Mat affine_matrix = read_h(base_folder+img_folder+"/"+aff_name);
+    Mat out_normal = draw_match(img1, img2, affine_matrix, matchNum);
+    Mat out_hsv = draw_match_hsv(img1, img2, affine_matrix, weight, matchNum);
+    
+    imshow("Normal", out_normal);
+    imshow("HSV", out_hsv);
     waitKey(0);
     return 0;
 }

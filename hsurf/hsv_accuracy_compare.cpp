@@ -17,50 +17,70 @@ Mat get_mask(Mat img, Point2f center, int r){
     return mask;
 }
 
-Mat get_hist(Mat img_hvs, Point2f center, int r = 10, int bins = 90){
-    Mat mask = get_mask(img_hvs, center, r);
-    int hist_size[] = {bins};
-    float hranges[] = {0, 180};
-    const float* ranges[] = {hranges};
-    int chanels [] = {0};
-    MatND hist;
-    calcHist(&img_hvs, 1, chanels, mask, hist, 1, hist_size, ranges);
-    Scalar totoal = sum(hist);
-    hist = hist * 1.0 / totoal[0];
-    //cout<<format(hist, Formatter::FMT_PYTHON)<<endl;
-    //Scalar s = sum(hist);
-    //cout<<"s:"<<s[0]<<endl;
-    return hist;
+
+double* get_hist(Mat img_hsv, Point center, int r = 10, int bins = 60){
+    
+    Mat g_kernal_x = getGaussianKernel(2*r, 2);
+    Mat g_kernal_y = getGaussianKernel(2*r, 2);
+    Mat g_kernal_t = g_kernal_x * g_kernal_y.t();
+    Mat g_kernal = g_kernal_t(Rect(r, r, r, r));
+    normalize(g_kernal, g_kernal, 1, 100, NORM_MINMAX);
+    g_kernal.convertTo(g_kernal, CV_8UC1);
+    //cout<<g_kernal<<endl;
+    double span = 360 / bins;
+    double* temp = new double[bins]();
+    
+    //cout<<format(g_kernal, Formatter::FMT_PYTHON)<<endl;
+    //cout<<img_hsv.size<<endl;
+    int i_start = max((int)center.y - r, 0);
+    int i_end = min((int)center.y + r, (int)img_hsv.rows);
+    int j_start = max((int)center.x - r, 0);
+    int j_end = min((int)center.x + r, (int)img_hsv.cols);
+    for (int i = i_start; i < i_end; i++){
+        for (int j = j_start; j < j_end; j++){
+            int dy = abs(i - center.y);
+            int dx = abs(j - center.x);
+            if ( dx*dx + dy*dy > r*r)
+                continue;
+            //cout<<(int)img_hsv.at<uchar>(i, j)<<endl;
+            
+            int h = img_hsv.at<uchar>(i, j);
+            //cout<<h<<endl;
+            //cout<<(int)g_kernal.at<uchar>(dx, dy)<<endl;
+            temp[(int)(h / span)] += (int)g_kernal.at<uchar>(dy, dx);
+        }
+    }
+    
+    
+    int total = accumulate(temp, temp+bins, 0);
+    for (int i=0; i<bins; i++){
+        temp[i] /= total;
+    }
+    return temp;
 }
 
-double b_distance(Mat hist1, Mat hist2){
+
+double b_distance(double* hist1, double* hist2, int bins){
     double s = 0;
-    for (int i=0; i<hist1.rows; i++){
-        s += sqrt(hist1.at<double>(i, 0) * hist2.at<double>(i, 0));
+    for (int i=0; i<bins; i++){
+        s += sqrt(hist1[i] * hist2[i]);
     }
+    delete[] hist1;
+    delete[] hist2;
     return s;
 }
 
-double get_distance(Mat img_hvs_1, Mat img_hvs_2, KeyPoint kp1, KeyPoint kp2){
-    Mat h1 = get_hist(img_hvs_1, kp1.pt, kp1.size);
-    Mat h2 = get_hist(img_hvs_2, kp2.pt, kp2.size);
-    /*
-    cout<<"H1: ";
-    for (int i=0; i<h1.rows; i++){
-        cout<<h1.at<double>(i, 0)<<" ";
-    }
-    cout<<endl;
-    cout<<"H2: ";
-    for (int i=0; i<h2.rows; i++){
-        cout<<h2.at<double>(i, 0)<<" ";
-    }
-    cout<<endl;
-    */
 
-
+double get_distance(Mat img1_h, Mat img2_h, KeyPoint kp1, KeyPoint kp2, int bins = 60){
+   
     
-    return b_distance(h1, h2);
+    double* h1 = get_hist(img1_h, kp1.pt, kp1.size, bins);
+    double* h2 = get_hist(img2_h, kp2.pt, kp2.size, bins);
+
+    return b_distance(h1, h2, bins);
 }
+
+
 
 
 Mat addPad(Mat img){
@@ -261,7 +281,7 @@ int main(int argc, char const *argv[])
         exit(0);
     }
 
-    string folder = "/home/jiaming/research/img/";
+    string folder = "/home/jiaming/Documents/research/img/";
     string img1_name = argv[1];
     int step= strtol(argv[2], NULL, 10);
     double scale = strtod(argv[3], NULL);
