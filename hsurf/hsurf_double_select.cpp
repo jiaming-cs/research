@@ -86,7 +86,7 @@ Point2f getPosition(Point2f p, Mat affineMat){
 
 
 
-bool isCorrect(Point2f p1, Point2f p2, double d = 10){
+bool isCorrect(Point2f p1, Point2f p2, double d =100){
     return d > sqrt((p1.x - p2.x)*(p1.x - p2.x) + (p1.y - p2.y)*(p1.y - p2.y));
 }
 
