@@ -23,17 +23,18 @@ void menu()
 //交点信息结构体
 struct JD
 {
-	double jd_x;//交点坐标x
-	double jd_y;//交点坐标y
-	double jd_l0;//缓和曲线长
-	double jd_r;//圆曲线半径
+	double jd_x = 0;//交点坐标x
+	double jd_y = 0;//交点坐标y
+	double jd_l0 = 0;//缓和曲线长
+	double jd_r = 0;//圆曲线半径
+    double jd_angle = -1; // corresponding angle with next JD
 };
 
 //交点统计结构体
 struct Book
 {
-	struct JD jdArray[MAX];//统计保存的交点信息数组
-	int jd_size;//统计的交点个数
+	vector<JD> jdArray = vector<JD>(MAX);//统计保存的交点信息数组
+	int jd_size = 0;//统计的交点个数
 };
 
 //1.添加交点信息
@@ -106,7 +107,9 @@ void jisuan(Book* dot)
 		{
 			if (dot->jdArray[j + 1].jd_y == dot->jdArray[j].jd_y)
 			{
+                dot->jdArray[j].jd_angle = 90;
 				cout << "JD" << (j + 1) << "的方位角为：" << "90°" << endl;
+                
 			}
 			else
 			{
@@ -114,16 +117,22 @@ void jisuan(Book* dot)
 				if (fwj > 0)
 				{
 					double fwj1 = fwj / PI * 180;
+                    dot->jdArray[j].jd_angle = fwj1;
 					cout << "JD" << (j + 1) << "的方位角为：" << fwj1 << "°" << endl;
+                    
 				}
 				else if (fwj == 0)
 				{
+                    dot->jdArray[j].jd_angle = 0;
 					cout << "JD" << (j + 1) << "的方位角为：" << "0°" << endl;
+                    
 				}
 				else
 				{
 					double fwj1 = fwj / PI * 180 + 180;
+                    dot->jdArray[j].jd_angle = fwj1;
 					cout << "JD" << (j + 1) << "的方位角为：" << fwj1 << "°" << endl;
+                    
 				}
 			}
 			
@@ -172,8 +181,7 @@ int main()
 	//创建交点统计结构体变量
 	Book dot;
 	//初始化交点统计个数
-	dot.jd_size = 0;
-
+    dot.jdArray[MAX].jd_x = 0;
 	int select = 0;
 	while (true)
 	{
@@ -209,5 +217,6 @@ int main()
 	
 
 	system("pause");
+
 	return 0;
 }
